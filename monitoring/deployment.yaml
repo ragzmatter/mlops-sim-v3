@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: drift-monitor
+  namespace: mlops-monitoring
+  labels: {app: drift-monitor}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: drift-monitor}
+  template:
+    metadata:
+      labels: {app: drift-monitor}
+    spec:
+      containers:
+        - name: monitor
+          image: mlops-sim:local
+          command: ["python3", "/app/monitor.py"]
+          env:
+            - {name: ARTIFACT_DIR, value: /mnt/artifacts}
+            - {name: PSI_THRESHOLD, value: "0.2"}
+            - {name: CHECK_INTERVAL, value: "30"}
+          volumeMounts: [{name: artifacts, mountPath: /mnt/artifacts}]
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim: {claimName: artifacts-pvc}

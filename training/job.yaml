@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: model-training
+  namespace: mlops-training
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: training
+          image: mlops-sim:local
+          command: ["python3", "/app/train.py"]
+          env: [{name: ARTIFACT_DIR, value: /mnt/artifacts}]
+          volumeMounts: [{name: artifacts, mountPath: /mnt/artifacts}]
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim: {claimName: artifacts-pvc}

@@ -1,0 +1,17 @@
+# kind-config.yaml
+# Creates a 1 control-plane + 1 worker cluster, and mounts a host folder
+# into the worker so all namespaces can read/write a shared "model artifact store"
+# via hostPath PVs (simulates an artifact registry like S3/MLflow, locally).
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30080   # model serving NodePort
+        hostPort: 30080
+      - containerPort: 30090   # prometheus NodePort
+        hostPort: 30090
+  - role: worker
+    extraMounts:
+      - hostPath: /tmp/mlops-artifacts
+        containerPath: /mnt/artifacts

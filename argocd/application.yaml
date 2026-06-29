@@ -1,0 +1,23 @@
+# Apply this AFTER installing Argo CD into the `argocd` namespace.
+# It tells Argo CD: "watch this git repo, this path, this branch, and keep
+# the cluster's manifests in sync with it automatically."
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mlops-sim
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/<YOUR_GH_USERNAME>/mlops-sim.git   # <-- change this
+    targetRevision: main
+    path: .                 # repo root, where kustomization.yaml lives
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default       # kustomization itself creates the real namespaces
+  syncPolicy:
+    automated:
+      prune: true       # delete resources removed from git
+      selfHeal: true    # revert manual kubectl edits back to git state
+    syncOptions:
+      - CreateNamespace=true

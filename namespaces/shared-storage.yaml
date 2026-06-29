@@ -1,0 +1,80 @@
+# Shared "artifact store" volumes — simulates a model/feature registry.
+# All point at the SAME hostPath on the worker node (/mnt/artifacts), which kind
+# mounted from your laptop's /tmp/mlops-artifacts (see kind-config.yaml).
+# One PV+PVC pair per namespace because PVCs are namespace-scoped.
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: artifacts-pv-data
+spec:
+  capacity: {storage: 1Gi}
+  accessModes: ["ReadWriteOnce"]
+  hostPath: {path: /mnt/artifacts}
+  storageClassName: manual
+  claimRef: {namespace: mlops-data, name: artifacts-pvc}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: artifacts-pvc, namespace: mlops-data}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: manual
+  resources: {requests: {storage: 1Gi}}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: artifacts-pv-training
+spec:
+  capacity: {storage: 1Gi}
+  accessModes: ["ReadWriteOnce"]
+  hostPath: {path: /mnt/artifacts}
+  storageClassName: manual
+  claimRef: {namespace: mlops-training, name: artifacts-pvc}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: artifacts-pvc, namespace: mlops-training}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: manual
+  resources: {requests: {storage: 1Gi}}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: artifacts-pv-serving
+spec:
+  capacity: {storage: 1Gi}
+  accessModes: ["ReadWriteOnce"]
+  hostPath: {path: /mnt/artifacts}
+  storageClassName: manual
+  claimRef: {namespace: mlops-serving, name: artifacts-pvc}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: artifacts-pvc, namespace: mlops-serving}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: manual
+  resources: {requests: {storage: 1Gi}}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: artifacts-pv-monitoring
+spec:
+  capacity: {storage: 1Gi}
+  accessModes: ["ReadWriteOnce"]
+  hostPath: {path: /mnt/artifacts}
+  storageClassName: manual
+  claimRef: {namespace: mlops-monitoring, name: artifacts-pvc}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: artifacts-pvc, namespace: mlops-monitoring}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: manual
+  resources: {requests: {storage: 1Gi}}

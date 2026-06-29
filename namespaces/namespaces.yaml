@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mlops-data
+  labels: {stage: feature-engineering}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mlops-training
+  labels: {stage: training-evaluation}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mlops-serving
+  labels: {stage: serving}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mlops-monitoring
+  labels: {stage: monitoring}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argocd
+  labels: {stage: gitops}

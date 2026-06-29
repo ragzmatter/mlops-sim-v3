@@ -1,0 +1,21 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: model-evaluation
+  namespace: mlops-training
+spec:
+  backoffLimit: 0   # if eval fails the gate, we want it visible as Failed, not retried
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: evaluation
+          image: mlops-sim:local
+          command: ["python3", "/app/evaluate.py"]
+          env:
+            - {name: ARTIFACT_DIR, value: /mnt/artifacts}
+            - {name: AUC_THRESHOLD, value: "0.55"}
+          volumeMounts: [{name: artifacts, mountPath: /mnt/artifacts}]
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim: {claimName: artifacts-pvc}

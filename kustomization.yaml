@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespaces/namespaces.yaml
+  - namespaces/shared-storage.yaml
+  - feature-engineering/job.yaml
+  - training/job.yaml
+  - evaluation/job.yaml
+  - serving/deployment.yaml
+  - monitoring/deployment.yaml
+  - monitoring/prometheus.yaml
+  - retraining/cronjob.yaml

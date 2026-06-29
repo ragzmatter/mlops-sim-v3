@@ -1,0 +1,9 @@
+project: mlops_sim
+registry: /mnt/artifacts/feast/registry.db
+provider: local
+offline_store:
+  type: file                        # parquet files as offline store (local sim)
+online_store:
+  type: redis
+  connection_string: "redis-svc.mlops-data.svc.cluster.local:6379,db=0"
+entity_key_serialization_version: 2

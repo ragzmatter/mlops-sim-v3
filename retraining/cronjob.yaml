@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: retraining-cronjob
+  namespace: mlops-training
+spec:
+  schedule: "*/2 * * * *"   # every 2 min, for fast local simulation
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: retrain
+              image: mlops-sim:local
+              command: ["python3", "/app/retrain.py"]
+              env:
+                - {name: ARTIFACT_DIR, value: /mnt/artifacts}
+                - {name: AUC_THRESHOLD, value: "0.55"}
+              volumeMounts: [{name: artifacts, mountPath: /mnt/artifacts}]
+          volumes:
+            - name: artifacts
+              persistentVolumeClaim: {claimName: artifacts-pvc}

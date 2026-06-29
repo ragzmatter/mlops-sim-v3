@@ -1,0 +1,52 @@
+# Redis — online store backend for Feast
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: mlops-data
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: redis}}
+  template:
+    metadata: {labels: {app: redis}}
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports: [{containerPort: 6379}]
+          resources:
+            requests: {memory: 128Mi, cpu: 100m}
+            limits:   {memory: 256Mi, cpu: 200m}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-svc
+  namespace: mlops-data
+spec:
+  selector: {app: redis}
+  ports: [{port: 6379, targetPort: 6379}]
+---
+# Feast Materialization Job — runs after feature-engineering Job completes
+# Pushes offline features (parquet) into Redis online store
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: feast-materialize
+  namespace: mlops-data
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: feast-materialize
+          image: mlops-sim:local
+          command: ["python3", "/app/materialize.py"]
+          env:
+            - {name: ARTIFACT_DIR, value: /mnt/artifacts}
+            - {name: FEAST_REPO, value: /app/feature_repo}
+          volumeMounts: [{name: artifacts, mountPath: /mnt/artifacts}]
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim: {claimName: artifacts-pvc}

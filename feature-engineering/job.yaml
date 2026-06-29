@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: feature-engineering
+  namespace: mlops-data
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: seed-raw-data
+          image: mlops-sim:local
+          command: ["python3", "/app/generate_dataset.py"]
+          env: [{name: ARTIFACT_DIR, value: /mnt/artifacts}]
+          volumeMounts: [{name: artifacts, mountPath: /mnt/artifacts}]
+          # writes raw_ad_data.csv directly into the shared store too
+      containers:
+        - name: feature-engineering
+          image: mlops-sim:local
+          command: ["python3", "/app/feature_engineering.py"]
+          env: [{name: ARTIFACT_DIR, value: /mnt/artifacts}]
+          volumeMounts: [{name: artifacts, mountPath: /mnt/artifacts}]
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim: {claimName: artifacts-pvc}
