@@ -1,36 +1,39 @@
 """
-Kubeflow Pipeline: CTR MLOps end-to-end
+Kubeflow Pipeline: CTR MLOps end-to-end (KFP v2 SDK)
 Each component = one K8s Job pod. KFP triggers the next only on success.
 Run: python3 pipeline.py  -> compiles to pipeline.yaml, then submit via KFP UI or CLI.
 """
-import kfp
-from kfp import dsl
-from kfp.components import create_component_from_func
+from kfp import dsl, compiler
 
-IMAGE = "localhost:5000/mlops-sim:latest"  # local registry
-ARTIFACT_DIR = "/mnt/artifacts"
+IMAGE = "localhost:30050/mlops-sim:latest"  # local registry
 MLFLOW_URI = "http://mlflow-svc.mlops-training.svc.cluster.local:5000"
 
 
+@dsl.component(base_image=IMAGE)
 def feature_engineering_op():
     import subprocess
     subprocess.run(["python3", "/app/feature_engineering.py"], check=True)
 
+
+@dsl.component(base_image=IMAGE, packages_to_install=["mlflow"])
 def training_op(mlflow_uri: str):
     import subprocess, os
-    env = {**dict(__import__("os").environ), "MLFLOW_TRACKING_URI": mlflow_uri}
+    env = {**os.environ, "MLFLOW_TRACKING_URI": mlflow_uri}
     subprocess.run(["python3", "/app/train.py"], check=True, env=env)
 
+
+@dsl.component(base_image=IMAGE, packages_to_install=["mlflow"])
 def evaluation_op(mlflow_uri: str) -> str:
     import subprocess, os
-    env = {**dict(__import__("os").environ), "MLFLOW_TRACKING_URI": mlflow_uri}
+    env = {**os.environ, "MLFLOW_TRACKING_URI": mlflow_uri}
     r = subprocess.run(["python3", "/app/evaluate.py"], env=env)
     if r.returncode != 0:
         raise RuntimeError("Evaluation gate FAILED — model not promoted")
     return "approved"
 
+
+@dsl.component(base_image=IMAGE)
 def deploy_trigger_op(approval: str):
-    """Runs only if evaluation_op returns 'approved'. Patches the serving deployment."""
     import subprocess
     if approval != "approved":
         raise RuntimeError("Skipping deploy — not approved")
@@ -40,45 +43,24 @@ def deploy_trigger_op(approval: str):
     ], check=True)
 
 
-# Wrap plain functions as KFP components
-feature_comp = create_component_from_func(
-    feature_engineering_op, base_image=IMAGE,
-    packages_to_install=[]
-)
-training_comp = create_component_from_func(
-    training_op, base_image=IMAGE,
-    packages_to_install=["mlflow"]
-)
-evaluation_comp = create_component_from_func(
-    evaluation_op, base_image=IMAGE,
-    packages_to_install=["mlflow"]
-)
-deploy_comp = create_component_from_func(
-    deploy_trigger_op, base_image=IMAGE,
-    packages_to_install=[]
-)
-
-
 @dsl.pipeline(name="ctr-mlops-pipeline", description="CTR end-to-end MLOps")
 def ctr_pipeline(mlflow_uri: str = MLFLOW_URI):
-    # --- shared PVC passed via volume (same /mnt/artifacts concept) ---
-    pvc = dsl.PipelineVolume(pvc="artifacts-pvc")
+    feat = feature_engineering_op()
+    feat.set_caching_options(False)
 
-    feat = feature_comp()
-    feat.add_pvolumes({ARTIFACT_DIR: pvc})
-
-    train = training_comp(mlflow_uri=mlflow_uri)
-    train.add_pvolumes({ARTIFACT_DIR: pvc})
+    train = training_op(mlflow_uri=mlflow_uri)
     train.after(feat)
+    train.set_caching_options(False)
 
-    evl = evaluation_comp(mlflow_uri=mlflow_uri)
-    evl.add_pvolumes({ARTIFACT_DIR: pvc})
+    evl = evaluation_op(mlflow_uri=mlflow_uri)
     evl.after(train)
+    evl.set_caching_options(False)
 
-    deploy = deploy_comp(approval=evl.output)
+    deploy = deploy_trigger_op(approval=evl.output)
     deploy.after(evl)
+    deploy.set_caching_options(False)
 
 
 if __name__ == "__main__":
-    kfp.compiler.Compiler().compile(ctr_pipeline, "pipeline.yaml")
+    compiler.Compiler().compile(ctr_pipeline, "pipeline.yaml")
     print("Compiled -> pipeline.yaml  (upload to KFP UI or use kfp run)")

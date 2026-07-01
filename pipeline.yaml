@@ -1,0 +1,215 @@
+# PIPELINE DEFINITION
+# Name: ctr-mlops-pipeline
+# Description: CTR end-to-end MLOps
+# Inputs:
+#    mlflow_uri: str [Default: 'http://mlflow-svc.mlops-training.svc.cluster.local:5000']
+components:
+  comp-deploy-trigger-op:
+    executorLabel: exec-deploy-trigger-op
+    inputDefinitions:
+      parameters:
+        approval:
+          parameterType: STRING
+  comp-evaluation-op:
+    executorLabel: exec-evaluation-op
+    inputDefinitions:
+      parameters:
+        mlflow_uri:
+          parameterType: STRING
+    outputDefinitions:
+      parameters:
+        Output:
+          parameterType: STRING
+  comp-feature-engineering-op:
+    executorLabel: exec-feature-engineering-op
+  comp-training-op:
+    executorLabel: exec-training-op
+    inputDefinitions:
+      parameters:
+        mlflow_uri:
+          parameterType: STRING
+deploymentSpec:
+  executors:
+    exec-deploy-trigger-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - deploy_trigger_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.16.1'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef deploy_trigger_op(approval: str):\n    import subprocess\n  \
+          \  if approval != \"approved\":\n        raise RuntimeError(\"Skipping deploy\
+          \ \u2014 not approved\")\n    subprocess.run([\n        \"kubectl\", \"\
+          rollout\", \"restart\",\n        \"deployment/model-serving\", \"-n\", \"\
+          mlops-serving\"\n    ], check=True)\n\n"
+        image: localhost:30050/mlops-sim:latest
+    exec-evaluation-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - evaluation_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'mlflow'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'kfp==2.16.1'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef evaluation_op(mlflow_uri: str) -> str:\n    import subprocess,\
+          \ os\n    env = {**os.environ, \"MLFLOW_TRACKING_URI\": mlflow_uri}\n  \
+          \  r = subprocess.run([\"python3\", \"/app/evaluate.py\"], env=env)\n  \
+          \  if r.returncode != 0:\n        raise RuntimeError(\"Evaluation gate FAILED\
+          \ \u2014 model not promoted\")\n    return \"approved\"\n\n"
+        image: localhost:30050/mlops-sim:latest
+    exec-feature-engineering-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - feature_engineering_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.16.1'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef feature_engineering_op():\n    import subprocess\n    subprocess.run([\"\
+          python3\", \"/app/feature_engineering.py\"], check=True)\n\n"
+        image: localhost:30050/mlops-sim:latest
+    exec-training-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - training_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'mlflow'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'kfp==2.16.1'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef training_op(mlflow_uri: str):\n    import subprocess, os\n  \
+          \  env = {**os.environ, \"MLFLOW_TRACKING_URI\": mlflow_uri}\n    subprocess.run([\"\
+          python3\", \"/app/train.py\"], check=True, env=env)\n\n"
+        image: localhost:30050/mlops-sim:latest
+pipelineInfo:
+  description: CTR end-to-end MLOps
+  name: ctr-mlops-pipeline
+root:
+  dag:
+    tasks:
+      deploy-trigger-op:
+        cachingOptions: {}
+        componentRef:
+          name: comp-deploy-trigger-op
+        dependentTasks:
+        - evaluation-op
+        inputs:
+          parameters:
+            approval:
+              taskOutputParameter:
+                outputParameterKey: Output
+                producerTask: evaluation-op
+        taskInfo:
+          name: deploy-trigger-op
+      evaluation-op:
+        cachingOptions: {}
+        componentRef:
+          name: comp-evaluation-op
+        dependentTasks:
+        - training-op
+        inputs:
+          parameters:
+            mlflow_uri:
+              componentInputParameter: mlflow_uri
+        taskInfo:
+          name: evaluation-op
+      feature-engineering-op:
+        cachingOptions: {}
+        componentRef:
+          name: comp-feature-engineering-op
+        taskInfo:
+          name: feature-engineering-op
+      training-op:
+        cachingOptions: {}
+        componentRef:
+          name: comp-training-op
+        dependentTasks:
+        - feature-engineering-op
+        inputs:
+          parameters:
+            mlflow_uri:
+              componentInputParameter: mlflow_uri
+        taskInfo:
+          name: training-op
+  inputDefinitions:
+    parameters:
+      mlflow_uri:
+        defaultValue: http://mlflow-svc.mlops-training.svc.cluster.local:5000
+        isOptional: true
+        parameterType: STRING
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.16.1
